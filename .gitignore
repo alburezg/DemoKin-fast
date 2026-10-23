@@ -1,0 +1,10 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+src/*.o
+src/*.so
+src/*.dll
+dev/equivalence/ref_original/
+dev/equivalence/new_fast/
+*.log

@@ -1,0 +1,2 @@
+# No fused multiply-add: results must round exactly like R's dense %*%.
+PKG_CXXFLAGS = -ffp-contract=off

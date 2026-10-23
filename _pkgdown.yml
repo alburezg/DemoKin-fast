@@ -1,0 +1,56 @@
+url: https://ivanwilli.github.io/DemoKin/
+template:
+  params:
+    bootstrap: 5
+    bootswatch: united
+
+navbar:
+  title: "DemoKin"
+  structure:
+    left: [home, tutorials, reference, technicals, articles]
+    right: [github]
+  components:
+    home:
+      strip_header: true
+      title: DemoKin
+      description: Demographic analysis of kinship networks using matrix-based models.
+      icon: fas fa-home fa-lg
+      href: index.html
+    tutorials:
+      text: "Tutorials"
+      menu:
+      - text: "One-sex time-invariant model"
+        href: articles/1_1_OneSex_TimeInvariant_Age.html
+      - text: "One-sex time-varying model"
+        href: articles/1_2_OneSex_TimeVarying_Age.html
+      - text: "Two-sex time-invariant model"
+        href: articles/1_3_TwoSex_TimeInvariant_Age.html
+      - text: "Two-sex time-varying model"
+        href: articles/1_4_TwoSex_TimeVarying_Age.html
+      - text: "One-sex time-invariant Age-Stage model"
+        href: articles/2_1_OneSex_TimeInvariant_AgeStage.html
+      - text: "Two-sex time-varying Age-Stage model"
+        href: articles/2_2_TwoSex_TimeVarying_AgeStage.html
+      - text: "Technical details"
+        href: articles/3_0_Technicals.html
+      - text: "Recent changes"
+        href: articles/4_0_Recent_changes.html
+    reference:
+      text: "Functions"
+      href: reference/index.html
+    articles:
+      text: "Articles"
+      href: articles/0_0_Papers.html
+    github:
+      icon: fab fa-github fa-lg
+      href: https://github.com/IvanWilli/DemoKin
+
+# reference:
+#   - title: "Model estimation"
+#     desc: "Estimate kinship count distribution"
+#     contents:
+#       - starts_with("kin")
+#   - title: "Kinship diagram"
+#     desc: "Visualize a kinship diagram"
+#     contents:
+#       - starts_with("plot")
