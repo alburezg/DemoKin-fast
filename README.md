@@ -10,6 +10,9 @@ multiplies only the non-zero entries of the projection matrices, accumulating in
 ```r
 # install.packages("remotes")
 remotes::install_github("alburezg/DemoKin-fast")
+
+# if that fails to download (e.g. behind a proxy or with a stale GitHub token):
+remotes::install_git("https://github.com/alburezg/DemoKin-fast")
 ```
 
 The package is compiled from source, so Windows needs [Rtools](https://cran.r-project.org/bin/windows/Rtools/)
