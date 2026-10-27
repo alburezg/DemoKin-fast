@@ -1,4 +1,4 @@
 #' @keywords internal
 #' @importFrom Rcpp sourceCpp
-#' @useDynLib DemoKin, .registration = TRUE
+#' @useDynLib DemoKinFast, .registration = TRUE
 "_PACKAGE"

@@ -4,12 +4,24 @@
 \alias{kin_summary_cpp}
 \title{Grouped kin summary with R's accumulation semantics}
 \usage{
-kin_summary_cpp(living, dead, age_kin, g, ngroups, age_focal_g, cg, ncg)
+kin_summary_cpp(
+  living,
+  dead,
+  age_kin,
+  ord,
+  start,
+  ngroups,
+  age_focal_g,
+  cg,
+  ncg
+)
 }
 \arguments{
-\item{living, dead, age_kin}{row vectors of \code{kin_full}, already ordered by group.}
+\item{living, dead, age_kin}{columns of \code{kin_full}, in their original row order.}
 
-\item{g}{0-based group id per row (non-decreasing).}
+\item{ord}{ordering of the rows (1-based) that makes each group contiguous.}
+
+\item{start}{1-based positions in \code{ord} where groups start.}
 
 \item{ngroups}{number of groups.}
 

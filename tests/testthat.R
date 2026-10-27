@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/reference/test_package.html#special-files
 
 library(testthat)
-library(DemoKin)
+library(DemoKinFast)
 
-test_check("DemoKin")
+test_check("DemoKinFast")

@@ -124,8 +124,10 @@ kin_time_variant <- function(p = NULL, f = NULL, pi = NULL, n = NULL,
   if(list_output) {
     out <- store
   }else{
-    kin <- build_kin_df_tv(store, year_step, layout_1sex(age))
-    if (!is.null(output_period)) {
+    # build only the output years (identical to building all and subsetting)
+    keep <- if (!is.null(output_period) && any(as.integer(names(store)) %in% output_period)) output_period
+    kin <- build_kin_df_tv(store, year_step, layout_1sex(age), keep_years = keep)
+    if (!is.null(output_period) && is.null(keep)) {
       kin <- kin[kin$year %in% output_period, ]
     }
     out <- kin
@@ -200,9 +202,9 @@ output_period_cohort_combination <- function(output_cohort = NULL, output_period
 #' @export
 rename_kin <- function(df, sex = "f"){
   if(!"kin" %in% names(df)) stop("Input df needs a column named kin.")
-  if(sex == "f") demokin_codes_sex <- DemoKin::demokin_codes[,c("DemoKin", "Labels_female")]
-  if(sex == "m") demokin_codes_sex <- DemoKin::demokin_codes[,c("DemoKin", "Labels_male")]
-  if(sex == "2sex") demokin_codes_sex <- DemoKin::demokin_codes[,c("DemoKin", "Labels_2sex")]
+  if(sex == "f") demokin_codes_sex <- DemoKinFast::demokin_codes[,c("DemoKin", "Labels_female")]
+  if(sex == "m") demokin_codes_sex <- DemoKinFast::demokin_codes[,c("DemoKin", "Labels_male")]
+  if(sex == "2sex") demokin_codes_sex <- DemoKinFast::demokin_codes[,c("DemoKin", "Labels_2sex")]
   colnames(demokin_codes_sex) <- c("kin", "kin_label")
   df %>%
     dplyr::left_join(demokin_codes_sex)

@@ -97,27 +97,39 @@ kin_time_variant_2sex <- function(pf = NULL, pm = NULL,
     }
   }
 
+  # subdiagonal (ageing) positions of an ages x ages block, in column order
+  sub_i <- 2:ages; sub_j <- 1:(ages-1); age1 <- seq_len(ages)
+
   # loop over years
   message("Running kinship model...")
   pkin <- NULL
   for(t in 1:n_years_data){
-    Uf = Um = Fft = Fmt = Mm = Mf = Gt = zeros <- matrix(0, nrow=ages, ncol=ages)
-    Uf[row(Uf)-1 == col(Uf)] <- pf[-ages,t]
-    Uf[ages, ages] = pf[ages,t]
-    Um[row(Um)-1 == col(Um)] <- pm[-ages,t]
-    Um[ages, ages] <- pm[ages,t]
-    Mm <- diag(1-pm[,t])
-    Mf <- diag(1-pf[,t])
-    Ut <- as.matrix(rbind(
-      cbind(Matrix::bdiag(Uf, Um), Matrix::bdiag(zeros, zeros)),
-      cbind(Matrix::bdiag(Mf, Mm), Matrix::bdiag(zeros, zeros))))
-    Fft[1,] <- ff[,t]
-    Fmt[1,] <- fm[,t]
-    Ft <- Ft_star <- matrix(0, agess*2, agess*2)
-    Ft[1:agess,1:agess] <- rbind(cbind(birth_female[t] * Fft, birth_female[t] * Fmt),
-                                 cbind((1-birth_female[t]) * Fft, (1-birth_female[t]) * Fmt))
-    Ft_star[1:agess,1:ages] <- rbind(birth_female[t] * Fft, (1-birth_female[t]) * Fft)
-    A <- Matrix::bdiag(Uf, Um) + Ft_star[1:agess,1:agess]
+    # The projection matrices go to the C++ kernel as triplet lists of their
+    # non-zero entries, built from the rates with the same arithmetic as the
+    # dense matrices they replace (Ut: survival on the subdiagonal and in the
+    # last age, deaths 1 - p below; Ft, Ft_star: birth_female * f in the rows
+    # of newborn females and males). The kernel keeps exactly the non-zero
+    # entries either way; the 404 x 404 matrices are no longer allocated.
+    bf <- birth_female[t]
+    Ut <- list(i = c(sub_i, ages, ages + sub_i, agess, agess + age1, agess + ages + age1),
+               j = c(sub_j, ages, ages + sub_j, agess, age1, ages + age1),
+               x = c(pf[-ages,t], pf[ages,t], pm[-ages,t], pm[ages,t], 1-pf[,t], 1-pm[,t]),
+               nrow = 2L*agess, ncol = 2L*agess)
+    Ft <- list(i = rep(c(1L, ages + 1L), each = agess), j = rep(seq_len(agess), 2),
+               x = c(bf * ff[,t], bf * fm[,t], (1-bf) * ff[,t], (1-bf) * fm[,t]),
+               nrow = 2L*agess, ncol = 2L*agess)
+    Fs_f <- bf * ff[,t]; Fs_m <- (1-bf) * ff[,t]
+    Ft_star <- list(i = rep(c(1L, ages + 1L), each = ages), j = rep(age1, 2),
+                    x = c(Fs_f, Fs_m), nrow = 2L*agess, ncol = 2L*agess)
+    # A = bdiag(Uf, Um) + Ft_star[1:agess, 1:agess], dense, as before
+    A <- Fs <- matrix(0, agess, agess)
+    A[cbind(sub_i, sub_j)] <- pf[-ages,t]
+    A[ages, ages] <- pf[ages,t]
+    A[cbind(ages + sub_i, ages + sub_j)] <- pm[-ages,t]
+    A[agess, agess] <- pm[ages,t]
+    Fs[1, age1] <- Fs_f
+    Fs[ages + 1, age1] <- Fs_m
+    A <- A + Fs
 
     # stable assumption at start
     if (t==1){
@@ -161,8 +173,10 @@ kin_time_variant_2sex <- function(pf = NULL, pm = NULL,
   if(list_output) {
     out <- store
   }else{
-    kin <- build_kin_df_tv(store, year_step, layout_2sex_tv(age))
-    if (!is.null(output_period)) {
+    # build only the output years (identical to building all and subsetting)
+    keep <- if (!is.null(output_period) && any(as.integer(names(store)) %in% output_period)) output_period
+    kin <- build_kin_df_tv(store, year_step, layout_2sex_tv(age), keep_years = keep)
+    if (!is.null(output_period) && is.null(keep)) {
       kin <- kin[kin$year %in% output_period, ]
     }
     out <- kin

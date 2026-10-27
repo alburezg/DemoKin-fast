@@ -71,7 +71,7 @@ kin_multi_stage <- function(U = NULL, f = NULL, D = NULL, H = NULL,
   ft <-  t(K) %*% bbH %*% K %*% bbF
 
   # focal transition but conditioned to survive
-  Gt <-  Ut%*% MASS::ginv(diag(colSums(as.matrix(Ut))))
+  Gt <-  Ut%*% ginv_of_diag(colSums(as.matrix(Ut)))  # = MASS::ginv(diag(...)), exactly
 
   # stable distribution of mothers
   At <- Ut + ft
@@ -95,21 +95,36 @@ kin_multi_stage <- function(U = NULL, f = NULL, D = NULL, H = NULL,
 
   # considering deaths (no cumulated): reacreate block struct matrices
   Mtt <- diag(as.numeric(onesom - onesom %*% Ut))
-  Utt <- rbind(cbind(Ut,zsom), cbind(Mtt,Isom)) %>% as.matrix()
-  ftt <- rbind(cbind(ft,zsom), cbind(zsom,zsom)) %>% as.matrix()
-  Gtt <- rbind(cbind(Gt,zsom), cbind(zsom,zsom)) %>% as.matrix()
+  # dense blocks built directly (Ut, ft and Gt are Matrix objects; binding them
+  # with base matrices went through Matrix's rbind/cbind). The three only feed
+  # the C++ kernel, which keeps the non-zero entries, and those are the same.
+  Utt <- rbind(cbind(as.matrix(Ut),zsom), cbind(Mtt,Isom))
+  ftt <- rbind(cbind(as.matrix(ft),zsom), cbind(zsom,zsom))
+  Gtt <- rbind(cbind(as.matrix(Gt),zsom), cbind(zsom,zsom))
   sages <- 1:(ages*s)
 
   # if parity: restriction to no initial mothers with 0 parity
   if(parity){
     Z=Is
     Z[1,1]=0
-    for(i in 1:ages){
-      E <- Iom[,i] %*% t(Iom[i,])
-      momarray[,i] <- kronecker(E,Z) %*% momarray[,i]
+    if (all(is.finite(momarray))) {
+      # kronecker(E, Z) %*% momarray[, i] keeps rows (i-1)*s + 2..s of column i
+      # and zeroes the rest. With finite values the BLAS product returns those
+      # entries exactly: each is 1 * x plus 0 * x terms added to a sum started
+      # at +0, which leaves x unchanged except -0, which becomes +0 (hence
+      # "+ 0"). The 606 x 606 kronecker product per age is not built.
+      keep <- matrix(FALSE, nrow(momarray), ncol(momarray))
+      if (s > 1) for (i in 1:ages) keep[(i - 1) * s + 2:s, i] <- TRUE
+      momarray[keep] <- momarray[keep] + 0
+      momarray[!keep] <- 0
+    } else {
+      for(i in 1:ages){
+        E <- Iom[,i] %*% t(Iom[i,])
+        momarray[,i] <- kronecker(E,Z) %*% momarray[,i]
+      }
     }
     # re-scale
-    momarray <- momarray %*% MASS::ginv(diag(colSums(momarray)))
+    momarray <- momarray %*% ginv_of_diag(colSums(momarray))  # = MASS::ginv(diag(...)), exactly
     # no 0 parity mothers: (momarray %*% piage)[seq(1,600,6)]
     m0 <- as.vector(momarray %*% piage)
   }else{

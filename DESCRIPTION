@@ -1,9 +1,10 @@
-Package: DemoKin
-Title: Estimate Population Kin Distribution
+Package: DemoKinFast
+Title: Estimate Population Kin Distribution (Fast Implementation of DemoKin)
 Description: Estimate population kin counts and its distribution by type, age and sex.
     The package implements one-sex and two-sex framework for studying living-death availability,
-    with time varying rates or not, and multi-stage model.
-Version: 2.0.0
+    with time varying rates or not, and multi-stage model. Same functions and
+    bit-identical outputs as DemoKin 1.0.3, with the projections in C++.
+Version: 2.2.0
 Authors@R: c(
     person("Iván", "Williams", email = "act.ivanwilliams@gmail.com", role = c("aut", "cre")),
     person("Diego", "Alburez-Gutierrez", email = "alburezgutierrez@demogr.mpg.de", role = "aut"),
@@ -35,9 +36,9 @@ Imports:
     magrittr,
     data.table
 LinkingTo: Rcpp
-URL: https://github.com/IvanWilli/DemoKin,
+URL: https://github.com/alburezg/DemoKin-fast, https://github.com/IvanWilli/DemoKin,
     https://ivanwilli.github.io/DemoKin/
-BugReports: https://github.com/IvanWilli/DemoKin/issues
+BugReports: https://github.com/alburezg/DemoKin-fast/issues
 Depends:
     R (>= 3.5)
 Config/testthat/edition: 3

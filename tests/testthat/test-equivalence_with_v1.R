@@ -71,6 +71,13 @@ test_that("two-sex time varying kin2sex() with causes of death matches v1", {
 })
 
 test_that("two-sex multistage time varying model (education, male Focal) matches v1", {
+  # The education data are Matrix objects: nrow() of them is NULL until the
+  # Matrix namespace is loaded, and neither DemoKin 1.0.3 nor this package
+  # imports it, so (as in the tutorials, which attach Matrix) load it first.
+  # Under devtools::test() it happens to be loaded already; under R CMD check
+  # it is not.
+  skip_if_not_installed("Matrix")
+  loadNamespace("Matrix")
   res <- suppressMessages(kin_multi_stage_time_variant_2sex(
     U_list_females = U_mat_fem_edu[1:4], U_list_males = U_mat_male_edu[1:4],
     F_list_females = F_mat_fem_edu[1:4], F_list_males = F_mat_male_edu[1:4],
@@ -82,6 +89,29 @@ test_that("two-sex multistage time varying model (education, male Focal) matches
 
 test_that("commutation matrix equals matrixcalc::commutation.matrix", {
   skip_if_not_installed("matrixcalc")
-  expect_identical(DemoKin:::commutation_matrix(6, 110), matrixcalc::commutation.matrix(6, 110))
-  expect_identical(DemoKin:::commutation_matrix(3, 5), matrixcalc::commutation.matrix(3, 5))
+  expect_identical(DemoKinFast:::commutation_matrix(6, 110), matrixcalc::commutation.matrix(6, 110))
+  expect_identical(DemoKinFast:::commutation_matrix(3, 5), matrixcalc::commutation.matrix(3, 5))
+})
+
+# Grouped kin types (s, c, a, n): kin2sex() sums the older/younger pairs. 2.1.0
+# replaced the dplyr regrouping with an exact C++ group sum; these pin it to v1.
+test_that("two-sex time varying kin2sex() with all grouped kin types matches v1", {
+  yr <- as.character(2000:2018)
+  pm <- swe_px[, yr]^1.5
+  fm <- rbind(matrix(0, 5, length(yr)), swe_asfr[-(97:101), yr]) * 1.05
+  dimnames(fm) <- dimnames(swe_asfr[, yr])
+  res <- suppressWarnings(suppressMessages(
+    kin2sex(pf = swe_px[, yr], pm = pm, ff = swe_asfr[, yr], fm = fm,
+            nf = swe_pop[, yr], nm = swe_pop[, yr] * 0.98, time_invariant = FALSE,
+            sex_focal = "m", output_kin = c("c", "d", "gd", "gm", "m", "n", "a", "s"),
+            output_period = c(2010, 2018), output_age_focal = c(0, 10, 40, 70))))
+  expect_same_as_v1(res, "tv_2sex_grouped")
+})
+
+test_that("two-sex time invariant kin2sex() with grouped and ungrouped kin matches v1", {
+  res <- suppressWarnings(suppressMessages(
+    kin2sex(fra_surv_sex[, "pf"], fra_surv_sex[, "pm"], fra_asfr_sex[, "ff"],
+            fra_asfr_sex[, "fm"], output_kin = c("s", "a", "n", "m", "ys"),
+            output_age_focal = c(5, 35, 65))))
+  expect_same_as_v1(res, "ti_2sex_grouped")
 })

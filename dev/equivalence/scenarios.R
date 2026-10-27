@@ -114,6 +114,18 @@ build_scenarios <- function(inp) {
   s$tv_2sex_period <- function() q(kin2sex(pf = inp$swe_pf, pm = inp$swe_pm, ff = inp$swe_ff, fm = inp$swe_fm,
                                             nf = swe_pop, nm = inp$swe_nm, sex_focal = "m",
                                             time_invariant = FALSE, output_period = c(1960, 2000)))
+  # grouped kin types (s, c, a, n): the regrouping step of kin2sex(), with
+  # all eight kin types and many output years, as applied work often asks
+  s$tv_2sex_grouped_period <- function() q(kin2sex(pf = inp$swe_pf, pm = inp$swe_pm, ff = inp$swe_ff, fm = inp$swe_fm,
+                                                    nf = swe_pop, nm = inp$swe_nm, time_invariant = FALSE,
+                                                    output_kin = c("c", "d", "gd", "gm", "m", "n", "a", "s"),
+                                                    output_period = 1990:2018))
+  s$tv_2sex_grouped_cohort <- function() q(kin2sex(pf = inp$swe_pf, pm = inp$swe_pm, ff = inp$swe_ff, fm = inp$swe_fm,
+                                                    nf = swe_pop, nm = inp$swe_nm, time_invariant = FALSE,
+                                                    sex_focal = "m", output_kin = c("s", "a", "m", "os"),
+                                                    output_cohort = c(1950, 1980)))
+  s$ti_2sex_grouped <- function() q(kin2sex(inp$fra_pf, inp$fra_pm, inp$fra_ff, inp$fra_fm,
+                                            output_kin = c("c", "d", "gd", "gm", "m", "n", "a", "s")))
   s$tv_2sex_all_small <- function() {
     yr <- as.character(2000:2018)
     q(kin2sex(pf = inp$swe_pf[, yr], pm = inp$swe_pm[, yr], ff = inp$swe_ff[, yr], fm = inp$swe_fm[, yr],

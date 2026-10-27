@@ -87,20 +87,22 @@ kin <- function(p = NULL, f = NULL,
                               birth_female = birth_female)
       # do not include last year output as default (issue 51)
       if(!output_year_last){
-        kin_full <- kin_full[kin_full$year <= max(years_data), ] 
+        if (any(kin_full$year > max(years_data))) kin_full <- kin_full[kin_full$year <= max(years_data), ]  # copy only if rows drop
       } 
       message(paste0("Assuming stable population before ", min(years_data), "."))
   }
 
   # re-group if grouped type is asked
   if(!is.null(output_kin_asked) & length(output_kin_asked)!=length(output_kin)){
-    if("s" %in% output_kin_asked) kin_full$kin[kin_full$kin %in% c("os", "ys")]   <- "s"
-    if("c" %in% output_kin_asked) kin_full$kin[kin_full$kin %in% c("coa", "cya")] <- "c"
-    if("a" %in% output_kin_asked) kin_full$kin[kin_full$kin %in% c("oa", "ya")]   <- "a"
-    if("n" %in% output_kin_asked) kin_full$kin[kin_full$kin %in% c("nos", "nys")] <- "n"
-    kin_full <- kin_full %>%
-      dplyr::summarise(living = sum(living), dead = sum(dead),
-                       .by = c(kin, age_kin, age_focal, cohort, year))
+    # the four relabels as one match() over the kin column (see kin2sex())
+    relab <- c(os = "s", ys = "s", coa = "c", cya = "c", oa = "a", ya = "a", nos = "n", nys = "n")
+    relab <- relab[relab %in% output_kin_asked]
+    hit <- match(kin_full$kin, names(relab))
+    sel <- !is.na(hit)
+    kin_full$kin[sel] <- unname(relab[hit[sel]])
+    # summarise(living = sum(living), dead = sum(dead), .by = ...), exactly
+    kin_full <- regroup_kin_sum(kin_full, c("kin", "age_kin", "age_focal", "cohort", "year"),
+                                by = "first", vals = c("living", "dead"))
   }
 
   # select period/cohort/age

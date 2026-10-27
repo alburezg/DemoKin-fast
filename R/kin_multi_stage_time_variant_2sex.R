@@ -37,6 +37,8 @@ kin_multi_stage_time_variant_2sex <- function(U_list_females = NULL,
                                               initial_stage_Focal = NULL,
                                               output_years){
 
+  # SD() keeps its last eigen decomposition for the boundary year; drop it on exit
+  on.exit({environment(SD)$last_M <- NULL; environment(SD)$last_eig <- NULL}, add = TRUE)
   no_years <- length(U_list_females)
   na <- nrow(U_list_females[[1]])
   ns <- ncol(U_list_females[[1]])
@@ -263,6 +265,13 @@ all_kin_dy_TV <- function(Uf, Um, Ff, Fm, alpha, na, ns, Parity, sex_Focal, Init
 #' @return A data frame which gives for each age of Focal at each year in the timescale, Focal's experienced number kin demarcated by stages (summed over all ages)
 #'
 create_cumsum_df <- function(kin_matrix_lists, kin_names, years, start_year, na, ns, specific_kin = NULL){
+  # only the kin asked for are built (the same rows, in the same order, as
+  # building all of them and filtering); if none matches, the original path
+  # below keeps the empty table's columns
+  if(!is.null(specific_kin) && any(unlist(kin_names) %in% specific_kin)){
+    kin_names <- kin_names[unlist(kin_names) %in% specific_kin]
+    specific_kin <- NULL
+  }
   n <- na * ns
   nk <- length(kin_names)
   nblock <- na * ns * 2
@@ -284,7 +293,7 @@ create_cumsum_df <- function(kin_matrix_lists, kin_names, years, start_year, na,
                       sex_kin = rep(c("f", "m"), na * ns * nk * ny),
                       year = rep(years, each = nblock * nk),
                       kin = rep(rep(unlist(kin_names), each = nblock), ny))
-  df <- df %>% dplyr::mutate(cohort = as.numeric(year) - as.numeric(age_focal))
+  df$cohort <- as.numeric(df$year) - as.numeric(df$age_focal)   # = dplyr::mutate()
   if(!is.null(specific_kin)){
     df <- df %>% dplyr::filter(kin %in% specific_kin)
   }
@@ -304,6 +313,13 @@ create_cumsum_df <- function(kin_matrix_lists, kin_names, years, start_year, na,
 #' @return A data frame which gives for each age of Focal at each year in the timescale, the full age*stage dist of kin
 #'
 create_full_dists_df <- function(kin_matrix_lists, kin_names, years, start_year, na, ns, specific_kin = NULL){
+  # only the kin asked for are built (the same rows, in the same order, as
+  # building all of them and filtering); if none matches, the original path
+  # below keeps the empty table's columns
+  if(!is.null(specific_kin) && any(unlist(kin_names) %in% specific_kin)){
+    kin_names <- kin_names[unlist(kin_names) %in% specific_kin]
+    specific_kin <- NULL
+  }
   n <- na * ns
   nk <- length(kin_names)
   ny <- length(years)
@@ -325,7 +341,7 @@ create_full_dists_df <- function(kin_matrix_lists, kin_names, years, start_year,
                    year = rep(years, each = nblock * nk),
                    kin = rep(rep(unlist(kin_names), each = nblock), ny),
                    stringsAsFactors = FALSE)
-  df <- df %>% dplyr::mutate(cohort = as.numeric(year) - as.numeric(age_focal))
+  df$cohort <- as.numeric(df$year) - as.numeric(df$age_focal)   # = dplyr::mutate()
   if(!is.null(specific_kin)){
     df <- df %>% dplyr::filter(kin %in% specific_kin)
   }
@@ -333,7 +349,21 @@ create_full_dists_df <- function(kin_matrix_lists, kin_names, years, start_year,
 }
 
 # Zero every entry of column i except age i, stages 2..ns (parity > 0)
+#
+# For a dense dgeMatrix (what pi_f %*% t(1) gives) the kept entries are
+# copied and the rest set to +0 directly in the value slot, which is what the
+# column loop below did through `[<-` (101 S4 sub-assignments, a large share
+# of the parity model's run time). Anything else takes the loop.
 keep_parity_block <- function(M, na, ns){
+  if (identical(class(M), structure("dgeMatrix", package = "Matrix")) &&
+      nrow(M) == na * ns && ncol(M) == na && length(M@factors) == 0L) {
+    keep <- matrix(FALSE, na * ns, na)
+    if (ns > 1) for (i in 1:na) keep[(i - 1) * ns + 2:ns, i] <- TRUE
+    x <- M@x
+    x[!as.vector(keep)] <- 0
+    M@x <- x
+    return(M)
+  }
   for(i in 1:na){
     v <- M[,i]
     v2 <- numeric(length(v))
@@ -362,8 +392,8 @@ block_diag_function <- function(mat_list){
 ## Construct a matrix which transfers Focal across stages, while ensuring Focal survives with probability 1
 get_G <- function(U, na, ns){
   sig <- Matrix::t(rep(1,na*ns)) %*% U
-  diag <- Matrix::diag(sig[1,])
-  G <- U %*% MASS::ginv(diag)
+  # MASS::ginv(Matrix::diag(sig[1,])), exactly, without the SVD
+  G <- U %*% ginv_of_diag(sig[1,], Matrix::diag)
   return(G)
 }
 
@@ -464,8 +494,8 @@ pi_mix_parity <- function(Uf, Um, Ff, Fm, alpha, na, ns){
   # projection did: entries are copied, everything else is zero)
   m_mat <- keep_parity_block(m_mat, na, ns)
   d_mat <- keep_parity_block(d_mat, na, ns)
-  out_mum <- m_mat %*% MASS::ginv(Matrix::diag(Matrix::colSums(m_mat)))
-  out_dad <- d_mat %*% MASS::ginv(Matrix::diag(Matrix::colSums(d_mat)))
+  out_mum <- m_mat %*% ginv_of_diag(Matrix::colSums(m_mat), Matrix::diag)
+  out_dad <- d_mat %*% ginv_of_diag(Matrix::colSums(d_mat), Matrix::diag)
   ### Joint distributions
   pi_f <- out_mum %*% pi_F
   pi_m <- out_dad %*% pi_M
@@ -503,8 +533,8 @@ pi_mix_TV_parity <- function(Ff, Fm, alpha, na, ns, previous_age_stage_dist){
   # projection did: entries are copied, everything else is zero)
   m_mat <- keep_parity_block(m_mat, na, ns)
   d_mat <- keep_parity_block(d_mat, na, ns)
-  out_mum <- m_mat %*% MASS::ginv(Matrix::diag(Matrix::colSums(m_mat)))
-  out_dad <- d_mat %*% MASS::ginv(Matrix::diag(Matrix::colSums(d_mat)))
+  out_mum <- m_mat %*% ginv_of_diag(Matrix::colSums(m_mat), Matrix::diag)
+  out_dad <- d_mat %*% ginv_of_diag(Matrix::colSums(d_mat), Matrix::diag)
   ### Joint distributions
   pi_f <- out_mum %*% pi_F
   pi_m <- out_dad %*% pi_M
@@ -514,13 +544,32 @@ pi_mix_TV_parity <- function(Ff, Fm, alpha, na, ns, previous_age_stage_dist){
 ######################################################### Some useful utility functions required
 
 # Find the column-eigenvector corresponding to the spectral radius (Stable population structure in Demographics)
-SD <- function(PM) {
-  spectral_stuff <- eigen(PM)
-  spectral_stuff <- Re(spectral_stuff$vectors[, which.max(abs(spectral_stuff$values))])
-  # normalise...
-  vec_lambda <- spectral_stuff/sum(spectral_stuff)
-  return(vec_lambda)
-}
+#
+# eigen() works on unname(as.matrix(PM)), so the result depends on that dense
+# matrix only. The last one is kept with its result: the boundary year of
+# kin_multi_stage_time_variant_2sex() asks for the same matrix twice (the
+# population structure in all_kin_dy() and the parents' distribution in
+# pi_mix()/pi_mix_parity(), built differently but identical), and the second
+# eigen() was a large share of the run. A different matrix is decomposed as
+# before.
+SD <- local({
+  last_M <- NULL
+  last_eig <- NULL
+  function(PM) {
+    M <- unname(as.matrix(PM))
+    if (!is.null(last_M) && identical(M, last_M)) {
+      spectral_stuff <- last_eig
+    } else {
+      spectral_stuff <- eigen(M)
+      last_M <<- M
+      last_eig <<- spectral_stuff
+    }
+    spectral_stuff <- Re(spectral_stuff$vectors[, which.max(abs(spectral_stuff$values))])
+    # normalise...
+    vec_lambda <- spectral_stuff/sum(spectral_stuff)
+    return(vec_lambda)
+  }
+})
 
 ## Creating a matrix of zeros with a 1 in the i,j-th entry
 E_matrix <- function(i,j,n,m){
@@ -528,3 +577,4 @@ E_matrix <- function(i,j,n,m){
   E[i,j] <- 1
   return(E)
 }
+

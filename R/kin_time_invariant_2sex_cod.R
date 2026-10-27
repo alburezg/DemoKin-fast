@@ -63,9 +63,9 @@ kin_time_invariant_2sex_cod <- function(pf = NULL,
   # M_hat of dimension ((causes*ages) * ages), eq.12 in Caswell et al. (2024)
   Mf.cols <- lapply(1:ncol(Mf), function(j) return(Mf[,j]))
   Mm.cols <- lapply(1:ncol(Mm), function(j) return(Mm[,j]))
-  Ut <- as.matrix(rbind(
-    cbind(Matrix::bdiag(Uf, Um), Matrix::bdiag(zeros_l, zeros_l)),
-    cbind(Matrix::bdiag(Matrix::bdiag(Mf.cols), Matrix::bdiag(Mm.cols)), Matrix::bdiag(zeros_d, zeros_d))))
+  Ut <- rbind(  # dense blocks, as as.matrix() of the Matrix::bdiag() version
+    cbind(bdiag_dense(Uf, Um), bdiag_dense(zeros_l, zeros_l)),
+    cbind(bdiag_dense(bdiag_dense(Mf.cols), bdiag_dense(Mm.cols)), bdiag_dense(zeros_d, zeros_d)))
 
   Ff[1,] = ff
   Fm[1,] = fm
@@ -79,7 +79,7 @@ kin_time_invariant_2sex_cod <- function(pf = NULL,
 
   # parents age distribution under stable assumption in case no input
   if(is.null(pim) | is.null(pif)){
-    A = Matrix::bdiag(Uf, Um) + Ft_star[1:agess,1:agess]
+    A = bdiag_dense(Uf, Um) + Ft_star[1:agess,1:agess]  # dense, as Matrix returned
     A_decomp = eigen(A)
     lambda = as.double(A_decomp$values[1])
     w = as.double(A_decomp$vectors[,1])/sum(as.double(A_decomp$vectors[,1]))

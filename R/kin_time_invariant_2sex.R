@@ -41,9 +41,9 @@ kin_time_invariant_2sex <- function(pf = NULL, pm = NULL,
   Um[ages, ages] = pm[ages]
   Mm <- diag(1-pm)
   Mf <- diag(1-pf)
-  Ut <- as.matrix(rbind(
-        cbind(Matrix::bdiag(Uf, Um), Matrix::bdiag(zeros, zeros)),
-        cbind(Matrix::bdiag(Mf, Mm), Matrix::bdiag(zeros, zeros))))
+  Ut <- rbind(  # dense blocks, as as.matrix() of the Matrix::bdiag() version
+        cbind(bdiag_dense(Uf, Um), bdiag_dense(zeros, zeros)),
+        cbind(bdiag_dense(Mf, Mm), bdiag_dense(zeros, zeros)))
   Ff[1,] = ff
   Fm[1,] = fm
   Ft <- Ft_star <- matrix(0, agess*2, agess*2)
@@ -55,7 +55,7 @@ kin_time_invariant_2sex <- function(pf = NULL, pm = NULL,
 
   # parents age distribution under stable assumption in case no input
   if(is.null(pim) | is.null(pif)){
-    A = Matrix::bdiag(Uf, Um) + Ft_star[1:agess,1:agess]
+    A = bdiag_dense(Uf, Um) + Ft_star[1:agess,1:agess]  # dense, as Matrix returned
     A_decomp = eigen(A)
     lambda = as.double(A_decomp$values[1])
     w = as.double(A_decomp$vectors[,1])/sum(as.double(A_decomp$vectors[,1]))

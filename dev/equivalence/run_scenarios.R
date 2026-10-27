@@ -34,5 +34,11 @@ for (i in seq_along(scen)) {
   cat(sprintf("%8.2f s  %s\n", el, timings$status[i]))
   rm(res)
 }
-write.csv(timings, file.path(out_dir, "_timings.csv"), row.names = FALSE)
+# a subset run (scenario_regex) updates its rows and keeps the others
+tf <- file.path(out_dir, "_timings.csv")
+if (!is.null(pattern) && file.exists(tf)) {
+  old <- read.csv(tf, stringsAsFactors = FALSE)
+  timings <- rbind(old[!old$scenario %in% timings$scenario, ], timings)
+}
+write.csv(timings, tf, row.names = FALSE)
 cat("done\n")

@@ -125,9 +125,9 @@ kin_time_variant_2sex_cod <- function(pf = NULL, pm = NULL,
     # M_hat of dimension ((causes*ages) * ages), eq.12 in Caswell et al. (2024)
     Mf.cols <- lapply(1:ncol(Mf), function(j) return(Mf[,j]))
     Mm.cols <- lapply(1:ncol(Mm), function(j) return(Mm[,j]))
-    Ut <- as.matrix(rbind(
-      cbind(Matrix::bdiag(Uf, Um), Matrix::bdiag(zeros_l, zeros_l)),
-      cbind(Matrix::bdiag(Matrix::bdiag(Mf.cols), Matrix::bdiag(Mm.cols)), Matrix::bdiag(zeros_d, zeros_d))))
+    Ut <- rbind(  # dense blocks, as as.matrix() of the Matrix::bdiag() version
+      cbind(bdiag_dense(Uf, Um), bdiag_dense(zeros_l, zeros_l)),
+      cbind(bdiag_dense(bdiag_dense(Mf.cols), bdiag_dense(Mm.cols)), bdiag_dense(zeros_d, zeros_d)))
 
     Fft[1,] = ff[,t]
     Fmt[1,] = fm[,t]
@@ -136,7 +136,7 @@ kin_time_variant_2sex_cod <- function(pf = NULL, pm = NULL,
     Ft[1:agess,1:agess] <- rbind(cbind(birth_female[t] * Fft, birth_female[t] * Fmt),
                                  cbind((1-birth_female[t]) * Fft, (1-birth_female[t]) * Fmt))
     Ft_star[1:agess,1:ages] <- rbind(birth_female[t] * Fft, (1-birth_female[t]) * Fft)
-    A = Matrix::bdiag(Uf, Um) + Ft_star[1:agess,1:agess]
+    A = bdiag_dense(Uf, Um) + Ft_star[1:agess,1:agess]  # dense, as Matrix returned
 
     # stable assumption at start
     if (t==1){
@@ -186,8 +186,10 @@ kin_time_variant_2sex_cod <- function(pf = NULL, pm = NULL,
   if(list_output) {
     out <- store
   }else{
-    kin <- build_kin_df_tv(store, year_step, layout_2sex_tv(age, causes))
-    if (!is.null(output_period)) {
+    # build only the output years (identical to building all and subsetting)
+    keep <- if (!is.null(output_period) && any(as.integer(names(store)) %in% output_period)) output_period
+    kin <- build_kin_df_tv(store, year_step, layout_2sex_tv(age, causes), keep_years = keep)
+    if (!is.null(output_period) && is.null(keep)) {
       kin <- kin[kin$year %in% output_period, ]
     }
     out <- kin

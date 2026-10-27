@@ -12,7 +12,7 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 
 // kin_project_cpp
 List kin_project_cpp(SEXP U, SEXP F, SEXP Fstar, SEXP G, NumericVector phi0, NumericVector m0, NumericVector pi_all, NumericVector pi_os, int ncol, int nlive, Nullable<List> prev);
-RcppExport SEXP _DemoKin_kin_project_cpp(SEXP USEXP, SEXP FSEXP, SEXP FstarSEXP, SEXP GSEXP, SEXP phi0SEXP, SEXP m0SEXP, SEXP pi_allSEXP, SEXP pi_osSEXP, SEXP ncolSEXP, SEXP nliveSEXP, SEXP prevSEXP) {
+RcppExport SEXP _DemoKinFast_kin_project_cpp(SEXP USEXP, SEXP FSEXP, SEXP FstarSEXP, SEXP GSEXP, SEXP phi0SEXP, SEXP m0SEXP, SEXP pi_allSEXP, SEXP pi_osSEXP, SEXP ncolSEXP, SEXP nliveSEXP, SEXP prevSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -33,7 +33,7 @@ END_RCPP
 }
 // kin_project_ms2sex_cpp
 List kin_project_ms2sex_cpp(SEXP Uproj, SEXP Fproj, SEXP Fprojstar, SEXP Gtilde, NumericVector IC_Focal, NumericVector parents, NumericVector pif, NumericVector pim, int na, Nullable<List> prev);
-RcppExport SEXP _DemoKin_kin_project_ms2sex_cpp(SEXP UprojSEXP, SEXP FprojSEXP, SEXP FprojstarSEXP, SEXP GtildeSEXP, SEXP IC_FocalSEXP, SEXP parentsSEXP, SEXP pifSEXP, SEXP pimSEXP, SEXP naSEXP, SEXP prevSEXP) {
+RcppExport SEXP _DemoKinFast_kin_project_ms2sex_cpp(SEXP UprojSEXP, SEXP FprojSEXP, SEXP FprojstarSEXP, SEXP GtildeSEXP, SEXP IC_FocalSEXP, SEXP parentsSEXP, SEXP pifSEXP, SEXP pimSEXP, SEXP naSEXP, SEXP prevSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -53,7 +53,7 @@ END_RCPP
 }
 // stage_sums_cpp
 NumericMatrix stage_sums_cpp(NumericMatrix X, int ns);
-RcppExport SEXP _DemoKin_stage_sums_cpp(SEXP XSEXP, SEXP nsSEXP) {
+RcppExport SEXP _DemoKinFast_stage_sums_cpp(SEXP XSEXP, SEXP nsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -64,33 +64,61 @@ BEGIN_RCPP
 END_RCPP
 }
 // kin_summary_cpp
-List kin_summary_cpp(NumericVector living, NumericVector dead, NumericVector age_kin, IntegerVector g, int ngroups, NumericVector age_focal_g, IntegerVector cg, int ncg);
-RcppExport SEXP _DemoKin_kin_summary_cpp(SEXP livingSEXP, SEXP deadSEXP, SEXP age_kinSEXP, SEXP gSEXP, SEXP ngroupsSEXP, SEXP age_focal_gSEXP, SEXP cgSEXP, SEXP ncgSEXP) {
+List kin_summary_cpp(NumericVector living, NumericVector dead, SEXP age_kin, IntegerVector ord, IntegerVector start, int ngroups, NumericVector age_focal_g, IntegerVector cg, int ncg);
+RcppExport SEXP _DemoKinFast_kin_summary_cpp(SEXP livingSEXP, SEXP deadSEXP, SEXP age_kinSEXP, SEXP ordSEXP, SEXP startSEXP, SEXP ngroupsSEXP, SEXP age_focal_gSEXP, SEXP cgSEXP, SEXP ncgSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericVector >::type living(livingSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type dead(deadSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type age_kin(age_kinSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type g(gSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type age_kin(age_kinSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type ord(ordSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type start(startSEXP);
     Rcpp::traits::input_parameter< int >::type ngroups(ngroupsSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type age_focal_g(age_focal_gSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type cg(cgSEXP);
     Rcpp::traits::input_parameter< int >::type ncg(ncgSEXP);
-    rcpp_result_gen = Rcpp::wrap(kin_summary_cpp(living, dead, age_kin, g, ngroups, age_focal_g, cg, ncg));
+    rcpp_result_gen = Rcpp::wrap(kin_summary_cpp(living, dead, age_kin, ord, start, ngroups, age_focal_g, cg, ncg));
+    return rcpp_result_gen;
+END_RCPP
+}
+// group_sum_cpp
+NumericVector group_sum_cpp(NumericVector x, IntegerVector o, IntegerVector start);
+RcppExport SEXP _DemoKinFast_group_sum_cpp(SEXP xSEXP, SEXP oSEXP, SEXP startSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type o(oSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type start(startSEXP);
+    rcpp_result_gen = Rcpp::wrap(group_sum_cpp(x, o, start));
+    return rcpp_result_gen;
+END_RCPP
+}
+// group_starts_cpp
+IntegerVector group_starts_cpp(List keys, IntegerVector o);
+RcppExport SEXP _DemoKinFast_group_starts_cpp(SEXP keysSEXP, SEXP oSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< List >::type keys(keysSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type o(oSEXP);
+    rcpp_result_gen = Rcpp::wrap(group_starts_cpp(keys, o));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_DemoKin_kin_project_cpp", (DL_FUNC) &_DemoKin_kin_project_cpp, 11},
-    {"_DemoKin_kin_project_ms2sex_cpp", (DL_FUNC) &_DemoKin_kin_project_ms2sex_cpp, 10},
-    {"_DemoKin_stage_sums_cpp", (DL_FUNC) &_DemoKin_stage_sums_cpp, 2},
-    {"_DemoKin_kin_summary_cpp", (DL_FUNC) &_DemoKin_kin_summary_cpp, 8},
+    {"_DemoKinFast_kin_project_cpp", (DL_FUNC) &_DemoKinFast_kin_project_cpp, 11},
+    {"_DemoKinFast_kin_project_ms2sex_cpp", (DL_FUNC) &_DemoKinFast_kin_project_ms2sex_cpp, 10},
+    {"_DemoKinFast_stage_sums_cpp", (DL_FUNC) &_DemoKinFast_stage_sums_cpp, 2},
+    {"_DemoKinFast_kin_summary_cpp", (DL_FUNC) &_DemoKinFast_kin_summary_cpp, 9},
+    {"_DemoKinFast_group_sum_cpp", (DL_FUNC) &_DemoKinFast_group_sum_cpp, 3},
+    {"_DemoKinFast_group_starts_cpp", (DL_FUNC) &_DemoKinFast_group_starts_cpp, 2},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_DemoKin(DllInfo *dll) {
+RcppExport void R_init_DemoKinFast(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

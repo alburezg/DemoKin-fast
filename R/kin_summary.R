@@ -10,27 +10,23 @@ kin_summary_exact <- function(kin_full, agrupar, agrupar_no_age_focal) {
   keys <- kin_full[agrupar]
   # stable radix order == C-locale sort of the group keys, rows keep their order within a group
   ord <- do.call(order, c(unname(keys), list(method = "radix")))
-  keys_o <- keys[ord, , drop = FALSE]
-  n <- nrow(keys_o)
+  n <- length(ord)
   if (n == 0) {
     return(dplyr::tibble(keys, count_living = numeric(0), mean_age = numeric(0), sd_age = numeric(0),
                          count_dead = numeric(0), count_cum_dead = numeric(0), mean_age_lost = numeric(0)))
   }
-  same <- rep(TRUE, n)
-  same[1] <- FALSE                         # first row always starts a group
-  for (k in keys_o) {
-    kk <- k[-1]; kp <- k[-n]
-    same[-1] <- same[-1] & ((kk == kp) | (is.na(kk) & is.na(kp)))
-  }
-  g <- cumsum(!same)                       # 1-based group id, non-decreasing
-  first <- which(!same)
-  groups <- keys_o[first, , drop = FALSE]
-  rownames(groups) <- NULL
+  # first row of each group (keys equal, or both missing), found in C++
+  # without copying the sorted key columns
+  first <- group_starts_cpp(unname(as.list(keys)), ord)
+  groups <- as.data.frame(lapply(keys, function(k) k[ord[first]]), stringsAsFactors = FALSE,
+                          optional = TRUE)
   # cumulative groups: same keys without age_focal, in order of first appearance
   cum_key <- do.call(paste, c(groups[agrupar_no_age_focal], sep = "\r"))
   cg <- match(cum_key, unique(cum_key))
-  res <- kin_summary_cpp(kin_full$living[ord], kin_full$dead[ord], as.numeric(kin_full$age_kin[ord]),
-                         as.integer(g - 1L), length(first), as.numeric(groups$age_focal),
+  age_kin <- kin_full$age_kin
+  if (!is.integer(age_kin)) age_kin <- as.numeric(age_kin)
+  res <- kin_summary_cpp(as.numeric(kin_full$living), as.numeric(kin_full$dead), age_kin,
+                         as.integer(ord), as.integer(first), length(first), as.numeric(groups$age_focal),
                          as.integer(cg - 1L), max(cg))
   dplyr::as_tibble(c(as.list(groups), res))
 }

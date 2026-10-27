@@ -16,6 +16,8 @@
 #include <Rcpp.h>
 #include <vector>
 #include <algorithm>
+#include <cfloat>
+#include <cstring>
 
 using namespace Rcpp;
 
@@ -28,31 +30,42 @@ struct CSR {
   std::vector<int> ptr;
   std::vector<int> idx;
   std::vector<double> val;
+  std::vector<int> nzrows;   // rows with at least one entry, ascending
+  void index_rows() {
+    nzrows.clear();
+    for (int r = 0; r < nrow; ++r) if (ptr[r + 1] > ptr[r]) nzrows.push_back(r);
+  }
 };
 
 // Build CSR from a dense matrix: every non-zero entry is kept, in column order.
+// One pass over the matrix collects the non-zeros (column-major, so ascending
+// column within each row) and counts them per row; a counting sort then lays
+// them out by row, keeping that order.
 CSR csr_from_dense(const NumericMatrix& A) {
   CSR S;
   S.nrow = A.nrow();
   S.ncol = A.ncol();
   S.ptr.assign(S.nrow + 1, 0);
   const double* a = A.begin();
-  for (int j = 0; j < S.ncol; ++j)
-    for (int i = 0; i < S.nrow; ++i)
-      if (a[i + (size_t)j * S.nrow] != 0.0) S.ptr[i + 1]++;
+  std::vector<int> ri, ci;
+  std::vector<double> vv;
+  for (int j = 0; j < S.ncol; ++j) {
+    const double* aj = a + (size_t)j * S.nrow;
+    for (int i = 0; i < S.nrow; ++i) {
+      const double v = aj[i];
+      if (v != 0.0) { ri.push_back(i); ci.push_back(j); vv.push_back(v); S.ptr[i + 1]++; }
+    }
+  }
   for (int i = 0; i < S.nrow; ++i) S.ptr[i + 1] += S.ptr[i];
   S.idx.resize(S.ptr[S.nrow]);
   S.val.resize(S.ptr[S.nrow]);
   std::vector<int> fill(S.ptr.begin(), S.ptr.end() - 1);
-  for (int j = 0; j < S.ncol; ++j)
-    for (int i = 0; i < S.nrow; ++i) {
-      double v = a[i + (size_t)j * S.nrow];
-      if (v != 0.0) {
-        int k = fill[i]++;
-        S.idx[k] = j;
-        S.val[k] = v;
-      }
-    }
+  for (size_t k = 0; k < ri.size(); ++k) {
+    const int p = fill[ri[k]]++;
+    S.idx[p] = ci[k];
+    S.val[p] = vv[k];
+  }
+  S.index_rows();
   return S;
 }
 
@@ -81,6 +94,7 @@ CSR csr_from_triplets(const IntegerVector& i, const IntegerVector& j,
     S.val.push_back(x[o]);
   }
   for (int r = 0; r < nrow; ++r) S.ptr[r + 1] += S.ptr[r];
+  S.index_rows();
   return S;
 }
 
@@ -101,11 +115,18 @@ inline void matvec(const CSR& A, const double* x, double* y) {
 }
 
 // y = A x + B z  (two dgemv calls added elementwise, as in R)
+// Rows where B has no entry contribute (B z)[r] = 0.0, and y[r] + 0.0 is
+// y[r] bit for bit: y[r] is a sum started at +0.0, so it is never -0.0, and
+// NaN and Inf are unchanged by adding 0. Only B's non-empty rows are visited.
 inline void matvec2(const CSR& A, const double* x, const CSR& B, const double* z,
                     double* y, std::vector<double>& tmp) {
+  (void)tmp;
   matvec(A, x, y);
-  matvec(B, z, tmp.data());
-  for (int r = 0; r < A.nrow; ++r) y[r] = y[r] + tmp[r];
+  for (int r : B.nzrows) {
+    double s = 0.0;
+    for (int k = B.ptr[r]; k < B.ptr[r + 1]; ++k) s += B.val[k] * z[B.idx[k]];
+    y[r] = y[r] + s;
+  }
 }
 
 // out[0:nlive) = M[0:nlive, ] %*% w   (dense dgemv, ascending column order)
@@ -358,26 +379,36 @@ NumericMatrix stage_sums_cpp(NumericMatrix X, int ns) {
 //' sums accumulate in long double over rows in the given order (as R's `sum()`
 //' and `cumsum()` do) and the standard deviation uses `R_pow(x, 0.5)` like `^.5`.
 //'
-//' @param living,dead,age_kin row vectors of `kin_full`, already ordered by group.
-//' @param g 0-based group id per row (non-decreasing).
+//' @param living,dead,age_kin columns of `kin_full`, in their original row order.
+//' @param ord ordering of the rows (1-based) that makes each group contiguous.
+//' @param start 1-based positions in `ord` where groups start.
 //' @param ngroups number of groups.
 //' @param age_focal_g Focal's age of each group.
 //' @param cg 0-based id of the cumulative group (kin x sex x period/cohort) of each group.
 //' @param ncg number of cumulative groups.
 //' @keywords internal
 // [[Rcpp::export]]
-List kin_summary_cpp(NumericVector living, NumericVector dead, NumericVector age_kin,
-                     IntegerVector g, int ngroups, NumericVector age_focal_g,
+List kin_summary_cpp(NumericVector living, NumericVector dead, SEXP age_kin,
+                     IntegerVector ord, IntegerVector start, int ngroups, NumericVector age_focal_g,
                      IntegerVector cg, int ncg) {
-  const R_xlen_t n = living.size();
+  // rows are read through ord (1-based), group by group: the same values in
+  // the same order as the sorted copies the R side used to pass
+  const R_xlen_t n = ord.size();
+  const bool age_int = TYPEOF(age_kin) == INTSXP;
+  const int* ai = age_int ? INTEGER(age_kin) : nullptr;
+  const double* ad = age_int ? nullptr : REAL(age_kin);
   std::vector<long double> s_live(ngroups, 0.0L), s_la(ngroups, 0.0L), s_la2(ngroups, 0.0L), s_dead(ngroups, 0.0L);
-  for (R_xlen_t i = 0; i < n; ++i) {
-    const int k = g[i];
-    const double a = age_kin[i];
-    s_live[k] += living[i];
-    s_la[k] += living[i] * a;
-    s_la2[k] += living[i] * (a * a);
-    s_dead[k] += dead[i];
+  for (int k = 0; k < ngroups; ++k) {
+    const R_xlen_t a0 = (R_xlen_t)start[k] - 1;
+    const R_xlen_t a1 = (k + 1 < ngroups) ? (R_xlen_t)start[k + 1] - 1 : n;
+    for (R_xlen_t p = a0; p < a1; ++p) {
+      const R_xlen_t i = (R_xlen_t)ord[p] - 1;
+      const double a = age_int ? (ai[i] == NA_INTEGER ? NA_REAL : (double)ai[i]) : ad[i];
+      s_live[k] += living[i];
+      s_la[k] += living[i] * a;
+      s_la2[k] += living[i] * (a * a);
+      s_dead[k] += dead[i];
+    }
   }
   NumericVector count_living(ngroups), mean_age(ngroups), sd_age(ngroups), count_dead(ngroups),
       count_cum_dead(ngroups), mean_age_lost(ngroups);
@@ -401,4 +432,99 @@ List kin_summary_cpp(NumericVector living, NumericVector dead, NumericVector age
   return List::create(_["count_living"] = count_living, _["mean_age"] = mean_age, _["sd_age"] = sd_age,
                       _["count_dead"] = count_dead, _["count_cum_dead"] = count_cum_dead,
                       _["mean_age_lost"] = mean_age_lost);
+}
+
+//' Grouped sums with R's `sum()` semantics
+//'
+//' Replicates `sum(x)` evaluated group by group, as `dplyr::summarise()` does:
+//' within a group the values are added in row order into a long double that
+//' starts at 0 (R's `rsum()`), the total is clamped to +/-Inf beyond
+//' DBL_MAX, rounded to double, and added to 0.0 (the `zcum.r += tmp` step of
+//' `do_summary()`). NA and NaN propagate as in R, since the arithmetic is the
+//' same.
+//'
+//' @param x values, in the original row order.
+//' @param o ordering of the rows (1-based) that makes each group's rows
+//'   contiguous and keeps their original order within a group.
+//' @param start 1-based positions in `o` where groups start, increasing.
+//' @return one sum per group.
+//' @keywords internal
+// [[Rcpp::export]]
+NumericVector group_sum_cpp(NumericVector x, IntegerVector o, IntegerVector start) {
+  const R_xlen_t n = o.size();
+  const R_xlen_t ng = start.size();
+  NumericVector out(ng);
+  const double* px = x.begin();
+  const int* po = o.begin();
+  for (R_xlen_t g = 0; g < ng; ++g) {
+    const R_xlen_t a = (R_xlen_t)start[g] - 1;
+    const R_xlen_t b = (g + 1 < ng) ? (R_xlen_t)start[g + 1] - 1 : n;
+    long double s = 0.0;
+    for (R_xlen_t i = a; i < b; ++i) s += px[po[i] - 1];
+    double v;
+    if (s > DBL_MAX) v = R_PosInf;
+    else if (s < -DBL_MAX) v = R_NegInf;
+    else v = (double)s;
+    double z = 0.0;
+    z += v;
+    out[g] = z;
+  }
+  return out;
+}
+
+//' First row of each group of sorted keys
+//'
+//' `o` is a (1-based) ordering of the rows that makes every key column
+//' non-decreasing (e.g. `order(..., method = "radix")`). Row `o[i]` starts a
+//' new group when any key differs from row `o[i-1]`; two values are the same
+//' when they are equal or both missing (NA or NaN), which is what grouping
+//' does. Strings are compared by content.
+//'
+//' @param keys list of key columns (integer, logical, double or character).
+//' @param o ordering of the rows, 1-based.
+//' @return 1-based positions in `o` where groups start.
+//' @keywords internal
+// [[Rcpp::export]]
+IntegerVector group_starts_cpp(List keys, IntegerVector o) {
+  const R_xlen_t n = o.size();
+  if (n == 0) return IntegerVector(0);
+  std::vector<char> brk(n, 0);
+  brk[0] = 1;
+  const int* po = o.begin();
+  for (R_xlen_t c = 0; c < keys.size(); ++c) {
+    SEXP x = keys[c];
+    switch (TYPEOF(x)) {
+    case INTSXP: case LGLSXP: {
+      const int* p = (TYPEOF(x) == INTSXP) ? INTEGER(x) : LOGICAL(x);
+      for (R_xlen_t i = 1; i < n; ++i)
+        if (!brk[i] && p[po[i] - 1] != p[po[i - 1] - 1]) brk[i] = 1;
+      break;
+    }
+    case REALSXP: {
+      const double* p = REAL(x);
+      for (R_xlen_t i = 1; i < n; ++i) {
+        if (brk[i]) continue;
+        const double a = p[po[i] - 1], b = p[po[i - 1] - 1];
+        if (!(a == b || (ISNAN(a) && ISNAN(b)))) brk[i] = 1;
+      }
+      break;
+    }
+    case STRSXP: {
+      for (R_xlen_t i = 1; i < n; ++i) {
+        if (brk[i]) continue;
+        SEXP a = STRING_ELT(x, po[i] - 1), b = STRING_ELT(x, po[i - 1] - 1);
+        if (a == b) continue;
+        if (a == NA_STRING || b == NA_STRING || std::strcmp(CHAR(a), CHAR(b)) != 0) brk[i] = 1;
+      }
+      break;
+    }
+    default:
+      stop("group_starts_cpp: unsupported key type");
+    }
+  }
+  R_xlen_t ng = 0;
+  for (R_xlen_t i = 0; i < n; ++i) ng += brk[i];
+  IntegerVector out(ng);
+  for (R_xlen_t i = 0, k = 0; i < n; ++i) if (brk[i]) out[k++] = (int)(i + 1);
+  return out;
 }
