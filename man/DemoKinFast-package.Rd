@@ -11,10 +11,10 @@ Estimate population kin counts and its distribution by type, age and sex. The pa
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/alburezg/DemoKin-fast}
+  \item \url{https://github.com/alburezg/DemoKinFast}
   \item \url{https://github.com/IvanWilli/DemoKin}
   \item \url{https://ivanwilli.github.io/DemoKin/}
-  \item Report bugs at \url{https://github.com/alburezg/DemoKin-fast/issues}
+  \item Report bugs at \url{https://github.com/alburezg/DemoKinFast/issues}
 }
 
 }

@@ -36,9 +36,9 @@ Imports:
     magrittr,
     data.table
 LinkingTo: Rcpp
-URL: https://github.com/alburezg/DemoKin-fast, https://github.com/IvanWilli/DemoKin,
+URL: https://github.com/alburezg/DemoKinFast, https://github.com/IvanWilli/DemoKin,
     https://ivanwilli.github.io/DemoKin/
-BugReports: https://github.com/alburezg/DemoKin-fast/issues
+BugReports: https://github.com/alburezg/DemoKinFast/issues
 Depends:
     R (>= 3.5)
 Config/testthat/edition: 3
